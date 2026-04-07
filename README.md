@@ -11,54 +11,33 @@ All processing is done **natively** through the official VS Code Language Model 
 - **Persistent Metrics**: Track your total usage across VS Code sessions.
 - **Fully Customizable**: Edit system prompts and agent roles on the fly.
 
-## Development & Installation
+## Installation
 
-Since this is a developer-focused tool and not yet on the Marketplace, you need to compile and install it manually.
+### From the Marketplace
+The easiest way to get started is to install **CopilotSwarm** directly from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=ZendrYz.copilotswarm).
 
-### 1. Requirements
+1. Open VS Code.
+2. Go to the **Extensions** view (`Ctrl+Shift+X`).
+3. Search for `CopilotSwarm`.
+4. Click **Install**.
+
+### Manual Installation (VSIX)
+If you'd rather build it yourself or install the `.vsix` file:
+1. Clone the repo.
+2. Run `npm install` and `npm run build`.
+3. Package it with `npx @vscode/vsce package`.
+4. Install the resulting `.vsix` from the Extensions menu.
+
+## Requirements
 - **VS Code 1.90+**
-- **Node.js** & **npm**
-- An active **GitHub Copilot** subscription (and be logged in within VS Code).
-
-### 2. Setup & Compilation
-Clone the repository, install dependencies, and build the project:
-
-```bash
-# Install dependencies
-npm install
-
-# Compile the TypeScript code
-npm run build
-```
-
-### 3. Manual Installation (VSIX)
-To use the extension in your daily VS Code instance, you can package it into a `.vsix` file and install it:
-
-1. **Package the extension**:
-   ```bash
-   npm run package
-   ```
-   This will generate a file named `copilot-swarm-control-X.X.X.vsix` in the root folder.
-
-2. **Install to VS Code**:
-   - Open VS Code.
-   - Go to the **Extensions** view (`Ctrl+Shift+X`).
-   - Click the "..." (More Actions) menu at the top right of the Extensions view.
-   - Select **Install from VSIX...**.
-   - Pick the `.vsix` file you just generated.
-
-### 4. Running for Development
-If you just want to test or modify the code:
-- Open the project folder in VS Code.
-- Press `F5` to open a new "Extension Development Host" window with the extension active.
+- An active **GitHub Copilot** subscription (log in through VS Code).
 
 ## How to Use
 1. Open the command palette (`Ctrl+Shift+P`).
 2. Search for **"Open Swarm Control Panel"**.
-3. (Optional) Click **Connect GitHub** to sync your account and start tracking usage.
-4. Define your **Global Swarm Objective**.
-5. Configure your agents' **System Prompts** (roles).
-6. Click **Run Hierarchy** and watch them collaborate!
+3. Define your **Global Swarm Objective**.
+4. Configure your agents' **System Prompts** (roles).
+5. Click **Run Hierarchy** and watch them collaborate!
 
 ---
-*Created with focus on privacy and efficiency. No data leaves your machine except for the standard Copilot API calls.*
+*Created by [ZendrYz](https://github.com/ZendrYz). Focus on privacy and efficiency. No data leaves your machine except for the standard Copilot API calls.*
