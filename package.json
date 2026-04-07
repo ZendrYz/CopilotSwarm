@@ -2,8 +2,12 @@
   "name": "copilotswarm",
   "displayName": "CopilotSwarm",
   "description": "Orchestrate a swarm of GitHub Copilot agents to solve complex tasks.",
-  "icon": "logo.png",
-  "version": "1.0",
+  "icon": "logo.jpg",
+  "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZendrYz/CopilotSwarm"
+  },
   "publisher": "ZendrYz",
   "license": "MIT",
   "engines": {
