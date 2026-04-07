@@ -1,0 +1,53 @@
+{
+  "name": "copilotswarm",
+  "displayName": "CopilotSwarm",
+  "description": "Orchestrate a swarm of GitHub Copilot agents to solve complex tasks.",
+  "icon": "logo.png",
+  "version": "1.0",
+  "publisher": "ZendrYz",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "copilot",
+    "ai",
+    "swarm",
+    "agents"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "copilot-swarm.openPanel",
+        "title": "Open Swarm Control Panel",
+        "category": "Copilot Swarm"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "copilot-swarm.openPanel"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "package": "vsce package --no-dependencies",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.24.0"
+  },
+  "dependencies": {}
+}
