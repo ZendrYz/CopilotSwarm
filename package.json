@@ -1,5 +1,5 @@
 {
-  "name": "copilotswarm-dev",
+  "name": "copilotswarm",
   "displayName": "CopilotSwarm",
   "description": "Orchestrate a swarm of GitHub Copilot agents to solve complex tasks.",
   "icon": "logo.jpg",
