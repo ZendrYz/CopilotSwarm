@@ -4,7 +4,7 @@ import { AgentState, AgentConfig } from './types';
 export class AgentStore {
   private _agents: AgentState[] = [];
   private _totalTokens: number = 0;
-  private _tokenLimit: number = 0; // 0 = sin límite o "seguridad"
+  private _tokenLimit: number = 0;
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   public readonly onDidChange = this._onDidChange.event;
 
@@ -16,23 +16,10 @@ export class AgentStore {
     return [...this._agents];
   }
 
-  public getTotalTokens(): number {
-    return this._totalTokens;
-  }
-
-  public getTokenLimit(): number {
-    return this._tokenLimit;
-  }
-
-  public setTokenLimit(limit: number) {
-    this._tokenLimit = limit;
-    this._save();
-  }
-
-  public incrementTotalTokens(amount: number) {
-    this._totalTokens += amount;
-    this._save();
-  }
+  public getTotalTokens(): number { return this._totalTokens; }
+  public getTokenLimit(): number { return this._tokenLimit; }
+  public setTokenLimit(limit: number) { this._tokenLimit = limit; this._save(); }
+  public incrementTotalTokens(amount: number) { this._totalTokens += amount; this._save(); }
 
   public add(config: AgentConfig) {
     const id = Math.random().toString(36).substring(2, 9);
@@ -71,7 +58,7 @@ export class AgentStore {
           id: 'agent-1-research',
           name: 'Research Agent',
           modelId: 'gpt-4.1',
-          systemPrompt: 'Eres un Investigador experto. Analiza el objetivo global e investiga y resume toda la información.',
+          systemPrompt: 'Investigador experto. Analiza el objetivo global e investiga el contexto necesario.',
           objective: '',
           status: 'idle'
         },
@@ -79,15 +66,23 @@ export class AgentStore {
           id: 'agent-2-architect',
           name: 'Architect Agent',
           modelId: 'gpt-4.1',
-          systemPrompt: 'Eres un Arquitecto de Software. Diseña una solución técnica paso a paso.',
+          systemPrompt: 'Arquitecto. Diseña una solución técnica basada en la investigación previa.',
           objective: '',
           status: 'idle'
         },
         {
           id: 'agent-3-coder',
-          name: 'Coder Agent',
+          name: 'Action Coder',
           modelId: 'gpt-4.1',
-          systemPrompt: 'Eres un Desarrollador Senior. Escribe el código real.',
+          systemPrompt: 'Desarrollador Senior con permisos de Escritura. Basándote en el diseño del arquitecto, debes generar código real y SUSTANCIAL. Si crees que un archivo debe ser creado o modificado, usa obligatoriamente el formato: [WRITE_FILE: path/archivo.js]\nCódigo aquí\n[/WRITE_FILE]. No pidas permiso, ¡hazlo!',
+          objective: '',
+          status: 'idle'
+        },
+        {
+          id: 'agent-4-arbitrator',
+          name: 'Consensus Judge',
+          modelId: 'claude-sonnet-4.6',
+          systemPrompt: 'Veredicto Final. Revisa el historial y resuelve conflictos si los hay. Tienes poder de sobreescribir archivos detectados previamente si el código propuesto es erróneo.',
           objective: '',
           status: 'idle'
         }

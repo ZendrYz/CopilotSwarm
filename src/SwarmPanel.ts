@@ -15,23 +15,17 @@ export class SwarmPanel {
     this._panel.webview.onDidReceiveMessage(async (msg) => {
       switch (msg.type) {
         case 'requestAddAgent': {
-          let authModels: vscode.LanguageModelChat[] = [];
-          try { authModels = await vscode.lm.selectChatModels({ vendor: 'copilot' }); } catch (e) {}
-          const authIds = authModels.map(m => m.id);
-          const availableModels = COPILOT_MODELS.filter(m => authIds.some(aid => aid.toLowerCase().includes(m.id.toLowerCase()) || m.id.toLowerCase().includes(aid.toLowerCase())));
-          const modelItems = availableModels.length > 0 ? availableModels.map(m => ({ label: m.id, description: `${m.provider} (${m.status})`, id: m.id })) : authModels.map(m => ({ label: m.id, description: `${m.vendor} - ${m.family}`, id: m.id }));
-          const name = await vscode.window.showInputBox({ prompt: 'Enter Agent Name', value: `Agent ${this._store.all().length + 1}` });
+          const authModels = await this._getAuthModels();
+          const name = await vscode.window.showInputBox({ prompt: 'Agent Name', value: `Agent ${this._store.all().length + 1}` });
           if (!name) return;
-          const selectedModel = await vscode.window.showQuickPick(modelItems, { placeHolder: 'Select model' });
-          if (selectedModel) {
-            const systemPrompt = await vscode.window.showInputBox({ prompt: 'Set Agent Role', value: 'Be a helpful assistant.' }) || '';
-            this._store.add({ name, modelId: selectedModel.id, systemPrompt });
-          }
+          const selectedModel = await vscode.window.showQuickPick(authModels.map(m => ({ label: m.id, id: m.id })), { placeHolder: 'Init model' });
+          if (selectedModel) this._store.add({ name, modelId: selectedModel.id, systemPrompt: 'Be a professional assistant.' });
           break;
         }
         case 'removeAgent': this._store.remove(msg.agentId); break;
         case 'updateAgentPrompt': this._store.patch(msg.agentId, { systemPrompt: msg.systemPrompt }); break;
-        case 'updateLimit': this._store.setTokenLimit(msg.limit); break; // Guardar nuevo límite
+        case 'updateAgentModel': this._store.patch(msg.agentId, { modelId: msg.modelId }); break;
+        case 'updateLimit': this._store.setTokenLimit(msg.limit); break;
         case 'runAll': this._engine.runAll(msg.objective); break;
         case 'stopAll': this._engine.stopAll(); break;
         case 'oauthRequest': this._handleOAuth(); break;
@@ -43,40 +37,29 @@ export class SwarmPanel {
     this._updateState();
   }
 
+  private async _getAuthModels() {
+    try { return await vscode.lm.selectChatModels({ vendor: 'copilot' }); } catch { return []; }
+  }
+
   private async _handleOAuth() {
-    try {
-      const session = await vscode.authentication.getSession('github', ['user:email'], { createIfNone: true });
-      if (session) this._updateState();
-    } catch {}
+    try { if (await vscode.authentication.getSession('github', ['user:email'], { createIfNone: true })) this._updateState(); } catch {}
   }
 
   private async _updateState() {
-    let authModels: vscode.LanguageModelChat[] = [];
-    try { authModels = await vscode.lm.selectChatModels({ vendor: 'copilot' }); } catch {}
-    const authIds = authModels.map(m => m.id);
-    const filteredModels = COPILOT_MODELS.filter(m => authIds.some(aid => aid.toLowerCase().includes(m.id.toLowerCase()) || m.id.toLowerCase().includes(aid.toLowerCase())));
-    
+    const authModels = await this._getAuthModels();
     const session = await vscode.authentication.getSession('github', ['user:email'], { createIfNone: false });
-    const quota = session ? { 
-      user: session.account.label, 
-      used: this._store.getTotalTokens(), 
-      limit: this._store.getTokenLimit(), 
-      unit: 'tokens' 
-    } : null;
-
-    const state: SwarmState = { 
-      agents: this._store.all(), 
-      objective: '', 
-      quota 
-    };
-
-    this._panel.webview.postMessage({ type: 'state', state, models: filteredModels.length > 0 ? filteredModels : authModels.map(m => ({ id: m.id })), aliases: ALIAS_MAP });
+    const quota = session ? { user: session.account.label, used: this._store.getTotalTokens(), limit: this._store.getTokenLimit(), unit: 'tokens' } : null;
+    this._panel.webview.postMessage({ 
+      type: 'state', 
+      state: { agents: this._store.all(), quota },
+      availableModels: authModels.map(m => m.id)
+    });
   }
 
   public static createOrShow(extensionUri: vscode.Uri, store: AgentStore, engine: SwarmEngine) {
     const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
     if (SwarmPanel.currentPanel) { SwarmPanel.currentPanel._panel.reveal(column); return SwarmPanel.currentPanel; }
-    const panel = vscode.window.createWebviewPanel('swarmControl', 'Copilot Swarm', column || vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [extensionUri] });
+    const panel = vscode.window.createWebviewPanel('swarmControl', 'CopilotSwarm', column || vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [extensionUri] });
     SwarmPanel.currentPanel = new SwarmPanel(panel, extensionUri, store, engine);
     return SwarmPanel.currentPanel;
   }
@@ -89,90 +72,103 @@ export class SwarmPanel {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'unsafe-inline';">
-  <title>Copilot Swarm Control</title>
+  <title>CopilotSwarm</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-    :root { --bg-main: #0d1117; --bg-card: #161b22; --border: #30363d; --accent: #2f81f7; --accent-hover: #1f6feb; --success: #238636; --error: #da3633; --text-pri: #c9d1d9; --text-sec: #8b949e; --radius: 6px; --font-main: 'Inter', system-ui, sans-serif; --font-mono: 'JetBrains Mono', monospace; }
-    body { font-family: var(--font-main); background: var(--bg-main); color: var(--text-pri); margin: 0; padding: 24px; }
-    .container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-    .swarm-objective { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
-    .objective-input { width: 100%; background: var(--bg-main); border: 1px solid var(--border); border-radius: var(--radius); color: #fff; padding: 12px; font-family: inherit; resize: none; outline: none; box-sizing: border-box; }
-    .btn { padding: 8px 16px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-pri); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .btn:hover { background: #21262d; border-color: var(--text-sec); }
-    .btn-success { background: var(--success); color: #fff; border: none; }
-    .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
-    .agent-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-    .agent-header { display: flex; justify-content: space-between; align-items: flex-start; }
-    .agent-name { font-weight: 600; color: #fff; font-size: 15px; }
-    .agent-model { font-family: var(--font-mono); font-size: 11px; color: var(--text-sec); margin-top: 4px; }
-    .agent-status { font-size: 10px; padding: 3px 8px; border-radius: 12px; text-transform: uppercase; font-weight: 600; background: rgba(255,255,255,0.05); }
-    .status-running { color: var(--accent); background: rgba(47,129,247,0.1); }
-    .status-success { color: #3fb950; background: rgba(56,185,80,0.1); }
-    .agent-prompt { font-family: var(--font-mono); font-size: 11px; background: rgba(13,17,23,0.5); padding: 8px; border: 1px dashed var(--border); border-radius: 4px; color: var(--text-sec); width: 100%; box-sizing: border-box; resize: vertical; }
-    .agent-response { font-size: 12px; background: var(--bg-main); padding: 10px; border-radius: var(--radius); max-height: 120px; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--border); }
-    .add-agent-card { border: 2px dashed var(--border); display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px; color: var(--text-sec); cursor: pointer; transition: all 0.2s; }
-    .tokens-pill { font-size: 10px; color: var(--text-sec); background: var(--bg-main); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border); }
-    .security-bar { display: flex; align-items: center; border-radius: var(--radius); background: rgba(218,54,51,0.05); border: 1px solid rgba(218,54,51,0.2); padding: 12px; margin-top: -12px; gap: 15px; }
-    .limit-input { background: var(--bg-main); border: 1px solid var(--border); color: #fff; padding: 4px 8px; border-radius: 4px; width: 80px; font-size: 12px; }
+    :root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #c9d1d9; --sub: #8b949e; --accent: #2188ff; --error: #f85149; --success: #3fb950; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px; font-size: 13px; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    .header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 32px; }
+    .btn { background: #21262d; border: 1px solid var(--border); color: #c9d1d9; padding: 5px 16px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; }
+    .btn-primary { background: #238636; color: white; border: 1px solid rgba(240,246,252,0.1); }
+    .input { background: var(--bg); border: 1px solid var(--border); color: #fff; padding: 10px; border-radius: 6px; width: 100%; box-sizing: border-box; font-family: inherit; font-size: 13px; }
+    .select { background: #21262d; border: 1px solid var(--border); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 11px; outline: none; }
+    .agent-step { background: var(--card); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
+    .agent-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); }
+    .agent-body { padding: 16px; }
+    .label { font-size: 10px; font-weight: 600; color: var(--sub); text-transform: uppercase; margin-bottom: 6px; display: block; }
+    .agent-prompt { width: 100%; min-height: 40px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--sub); padding: 8px; font-family: monospace; font-size: 11px; resize: vertical; box-sizing: border-box; }
+    .agent-output { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 16px; min-height: 100px; max-height: 600px; overflow-y: auto; font-family: monospace; font-size: 12px; color: #d1d5db; white-space: pre-wrap; line-height: 1.6; margin-top: 12px; }
+    .agent-foot { padding: 8px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; color: var(--sub); font-size: 11px; }
+    .status-badge { font-size: 10px; padding: 1px 6px; border-radius: 12px; font-weight: 600; text-transform: uppercase; border: 1px solid transparent; margin-left: 8px; }
+    .status-running { color: var(--accent); border-color: var(--accent); }
+    .status-success { color: var(--success); border-color: var(--success); }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="header"><h1>Copilot Swarm Control</h1><button class="btn" id="btn-oauth">Connect GitHub</button></div>
-    <div class="security-bar">
-      <span style="font-size:12px; color:var(--error); font-weight:600;">Security System (Budget):</span>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <input type="number" id="limitInput" class="limit-input" placeholder="0 (disabled)">
-        <span style="font-size:11px; color:var(--text-sec);">max tokens before auto-stop</span>
-      </div>
+    <div class="header">
+      <h1 style="font-size:18px;">CopilotSwarm</h1>
+      <div id="quota-display" style="color:var(--sub); font-size:12px;">Not Connected</div>
     </div>
-    <div class="swarm-objective">
-      <textarea id="objectiveInput" class="objective-input" rows="3" placeholder="Objective..."></textarea>
-      <div style="display:flex; gap:12px;"><button class="btn btn-success" id="btn-runall">Run Hierarchy</button><button class="btn" id="btn-stopall">Stop</button></div>
+
+    <div style="margin-bottom:32px;">
+      <label class="label">Main Objective</label>
+      <textarea id="obj-input" class="input" rows="2" placeholder="Task for the swarm..."></textarea>
     </div>
-    <div class="agents-grid" id="agentsGrid"><div class="agent-card add-agent-card" id="btn-addagent"><span>+ Add Swarm Agent</span></div></div>
+
+    <div id="chain"></div>
+    <button class="btn" id="btn-add" style="width:100%; border-style:dashed; margin:16px 0; padding:12px;">+ Add Stage</button>
+
+    <div style="display:flex; gap:12px; align-items:center; border-top: 1px solid var(--border); padding-top:24px;">
+      <button class="btn btn-primary" id="btn-run" style="flex:1; padding:10px;">Run Swarm</button>
+      <button class="btn" id="btn-stop">Stop</button>
+      <input type="number" id="limit-input" class="input" style="width:80px;" placeholder="Limit">
+      <button class="btn" id="btn-oauth">Account</button>
+    </div>
   </div>
+
   <script>
     (function() {
       const vscode = acquireVsCodeApi();
-      let state = { agents: [] };
-      const agentsGrid = document.getElementById('agentsGrid');
-      const limitInput = document.getElementById('limitInput');
+      const chain = document.getElementById('chain');
+      let availableModels = [];
 
-      limitInput.addEventListener('change', (e) => vscode.postMessage({ type: 'updateLimit', limit: parseInt(e.target.value) || 0 }));
-      document.getElementById('btn-addagent').addEventListener('click', () => vscode.postMessage({ type: 'requestAddAgent' }));
-      document.getElementById('btn-runall').addEventListener('click', () => vscode.postMessage({ type: 'runAll', objective: document.getElementById('objectiveInput').value }));
-      document.getElementById('btn-stopall').addEventListener('click', () => vscode.postMessage({ type: 'stopAll' }));
-      document.getElementById('btn-oauth').addEventListener('click', () => vscode.postMessage({ type: 'oauthRequest' }));
+      document.getElementById('btn-run').onclick = () => vscode.postMessage({ type: 'runAll', objective: document.getElementById('obj-input').value });
+      document.getElementById('btn-stop').onclick = () => vscode.postMessage({ type: 'stopAll' });
+      document.getElementById('btn-add').onclick = () => vscode.postMessage({ type: 'requestAddAgent' });
+      document.getElementById('btn-oauth').onclick = () => vscode.postMessage({ type: 'oauthRequest' });
+      document.getElementById('limit-input').onchange = (e) => vscode.postMessage({ type: 'updateLimit', limit: parseInt(e.target.value) || 0 });
 
-      window.addEventListener('message', event => {
-        const msg = event.data;
-        if (msg.type === 'state') { 
-          state = msg.state; render();
-          if (msg.state.quota) {
-            limitInput.value = msg.state.quota.limit || 0;
-            document.getElementById('btn-oauth').innerHTML = \`<img src="https://github.com/fluidicon.png" width="14" style="border-radius:50%; vertical-align:middle;"> \${msg.state.quota.user} [\${msg.state.quota.used.toLocaleString()}]\`;
-          }
+      window.addEventListener('message', e => {
+        if (e.data.type === 'state') {
+          availableModels = e.data.availableModels || [];
+          render(e.data.state);
         }
       });
 
-      function render() {
-        const activeElem = document.activeElement;
-        const activeId = activeElem && activeElem.dataset ? activeElem.dataset.id : null;
-        const items = Array.from(agentsGrid.children).filter(c => c.id !== 'btn-addagent');
-        items.forEach(c => agentsGrid.removeChild(c));
-        state.agents.forEach((a, index) => {
-          const card = document.createElement('div');
-          card.className = 'agent-card';
-          card.innerHTML = \`
-            <div class="agent-header"><div><div class="agent-name">\${index+1}. \${a.name}</div><div class="agent-model">\${a.modelId}</div></div><div class="agent-status status-\${a.status}">\${a.status}</div></div>
-            <textarea class="agent-prompt" data-id="\${a.id}" rows="2">\${a.systemPrompt || ''}</textarea>
-            \${a.lastResponse ? \`<div class="agent-response">\${a.lastResponse}</div>\` : ''}
-            <div style="margin-top:auto; padding-top:8px; display:flex; justify-content:space-between; align-items:center;"><div class="tokens-pill">\${(a.tokensUsed || 0).toLocaleString()} tokens</div><button class="btn btn-remove" data-id="\${a.id}">Remove</button></div>
-          \`;
-          agentsGrid.insertBefore(card, document.getElementById('btn-addagent'));
-          if (activeId === a.id) setTimeout(() => card.querySelector('.agent-prompt').focus(), 0);
+      function render(state) {
+        if (state.quota) {
+          document.getElementById('quota-display').innerText = state.quota.user + ' (' + state.quota.used.toLocaleString() + ' tokens)';
+          document.getElementById('limit-input').value = state.quota.limit || '';
+        }
+        chain.innerHTML = '';
+        state.agents.forEach((a, i) => {
+          const step = document.createElement('div');
+          step.className = 'agent-step';
+          
+          let options = availableModels.map(m => \`<option value="\${m}" \${m === a.modelId ? 'selected' : ''}>\${m}</option>\`).join('');
+          if (!availableModels.includes(a.modelId)) {
+            options = \`<option value="\${a.modelId}" selected>\${a.modelId} (Not Auth)</option>\` + options;
+          }
+
+          step.innerHTML = \`
+            <div class="agent-head">
+              <div><strong>\${i+1}. \${a.name}</strong><span class="status-badge status-\${a.status}">\${a.status}</span></div>
+              <select class="select" data-id="\${a.id}">\${options}</select>
+            </div>
+            <div class="agent-body">
+              <label class="label">Role Instruction</label>
+              <textarea class="agent-prompt" data-id="\${a.id}">\${a.systemPrompt}</textarea>
+              \${a.lastResponse ? \`<div class="agent-output">\${a.lastResponse}</div>\` : ''}
+            </div>
+            <div class="agent-foot">
+              <span>\${(a.tokensUsed || 0).toLocaleString()} tks</span>
+              <span style="cursor:pointer; color:var(--error);" data-remove="\${a.id}">Delete</span>
+            </div>\`;
+          chain.appendChild(step);
+          step.querySelector('.agent-prompt').onchange = (e) => vscode.postMessage({ type: 'updateAgentPrompt', agentId: a.id, systemPrompt: e.target.value });
+          step.querySelector('.select').onchange = (e) => vscode.postMessage({ type: 'updateAgentModel', agentId: a.id, modelId: e.target.value });
+          step.querySelector('[data-remove]').onclick = () => vscode.postMessage({ type: 'removeAgent', agentId: a.id });
         });
       }
       vscode.postMessage({ type: 'requestState' });

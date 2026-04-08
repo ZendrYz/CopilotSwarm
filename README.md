@@ -9,7 +9,15 @@ All processing is done **natively** through the official VS Code Language Model 
 - **Dynamic Model Selection**: Select any model authorized in your subscription (GPT-4o, Claude 3.5, etc.).
 - **Security System**: Set a global token budget. The swarm auto-stops if you exceed your limit.
 - **Persistent Metrics**: Track your total usage across VS Code sessions.
-- **Fully Customizable**: Edit system prompts and agent roles on the fly.
+- **Conflict Resolution**: Integrated "Global History" system where agents detect and resolve contradictions from previous steps.
+
+## Conflict Resolution & Arbitration
+
+When multiple agents work together, conflicts are bound to happen. CopilotSwarm solves this via **Hierarchical Arbitration**:
+
+1.  **Global Context Window**: Every agent in the chain receives the *entire* history of decisions made by previous agents.
+2.  **Self-Correction Prompting**: Each agent is explicitly instructed to spot and fix contradictions found in the history.
+3.  **The Consensus Arbitrator**: By default, a final "Arbitrator" agent acts as the supreme judge, reconciling any final disagreements and outputting a single cohesive project vision.
 
 ## Installation
 
