@@ -34,6 +34,35 @@ export class SwarmPanel {
           );
           break;
         case 'stopAll': this._engine.stopAll(); break;
+        case 'applyChanges': {
+          await this._engine.applyEdits(msg.edits);
+          this._panel.webview.postMessage({ type: 'clearLogs' });
+          break;
+        }
+        case 'compareFile': {
+          const ws = vscode.workspace.workspaceFolders;
+          if (ws) {
+            const originalUri = vscode.Uri.joinPath(ws[0].uri, msg.path);
+            
+            // Create a temporary URI for the preview
+            const tempUri = vscode.Uri.parse(`swarm-preview:/${msg.path}`);
+            
+            // We'll use a simple approach: write to an untitled document with specific context
+            const doc = await vscode.workspace.openTextDocument({ 
+              content: msg.content,
+              language: originalUri.path.split('.').pop() || 'typescript'
+            });
+            
+            try {
+              await vscode.workspace.fs.stat(originalUri);
+              await vscode.commands.executeCommand('vscode.diff', originalUri, doc.uri, `${msg.path} ↔ Swarm Proposal`);
+            } catch {
+              await vscode.window.showTextDocument(doc, { preview: true, viewColumn: vscode.ViewColumn.Beside });
+              vscode.window.showInformationMessage(`Showing NEW file content for ${msg.path}`);
+            }
+          }
+          break;
+        }
         case 'oauthRequest': this._handleOAuth(); break;
         case 'requestState': this._updateState(); break;
         case 'openFile': {
@@ -86,76 +115,94 @@ export class SwarmPanel {
   public dispose() { SwarmPanel.currentPanel = undefined; this._panel.dispose(); while (this._disposables.length) { const x = this._disposables.pop(); if (x) x.dispose(); } }
   public render() { this._panel.webview.html = this.getWebviewHtml(); }
   public getWebviewHtml(): string {
-    return /* html */ `<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <style>
     :root {
       --bg: var(--vscode-editor-background);
       --sidebar-bg: var(--vscode-sideBar-background);
-      --border: var(--vscode-widget-border);
+      --border: var(--vscode-panel-border);
       --text: var(--vscode-foreground);
       --text-muted: var(--vscode-descriptionForeground);
-      --accent: var(--vscode-button-background);
+      --accent: var(--vscode-charts-blue);
       --accent-hover: var(--vscode-button-hoverBackground);
       --input-bg: var(--vscode-input-background);
       --input-fg: var(--vscode-input-foreground);
-      --list-hover: var(--vscode-list-hoverBackground);
-      --list-active: var(--vscode-list-activeSelectionBackground);
-      --list-active-fg: var(--vscode-list-activeSelectionForeground);
       --success: var(--vscode-testing-iconPassedColor);
+      --warning: var(--vscode-charts-orange);
+      --font-mono: var(--vscode-editor-font-family, 'SF Mono', Monaco, monospace);
     }
     
-    body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: var(--vscode-font-family); color: var(--text); background: var(--bg); font-size: 13px; }
-    
-    /* LEFT: CONTROL PANEL */
-    .sidebar { width: 320px; min-width: 320px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar-header { padding: 15px; border-bottom: 1px solid var(--border); }
-    .sidebar-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .auth-badge { font-size: 10px; color: var(--text-muted); }
-    
-    .input { width: 100%; box-sizing: border-box; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); padding: 8px; font-family: inherit; font-size: 12px; border-radius: 2px; }
-    .input:focus { outline: 1px solid var(--vscode-focusBorder); border-color: var(--vscode-focusBorder); }
-    textarea.input { resize: vertical; min-height: 60px; }
-    
-    .btn { background: var(--accent); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; cursor: pointer; border-radius: 2px; font-size: 12px; display: inline-block; text-align: center; }
-    .btn:hover { background: var(--accent-hover); }
-    .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); border: 1px solid transparent; }
-    .btn-secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-    .btn-outline { background: transparent; border: 1px dashed var(--border); color: var(--text); }
-    .btn-outline:hover { background: rgba(255,255,255,0.05); }
+    @keyframes pulse-blue {
+      0% { box-shadow: 0 0 0 0px rgba(0, 122, 204, 0.4); }
+      70% { box-shadow: 0 0 0 4px rgba(0, 122, 204, 0); }
+      100% { box-shadow: 0 0 0 0px rgba(0, 122, 204, 0); }
+    }
 
-    .stages-list { flex: 1; overflow-y: auto; padding: 10px; }
-    .stage-item { padding: 10px; border: 1px solid var(--border); border-radius: 4px; margin-bottom: 8px; cursor: pointer; background: var(--bg); transition: background 0.1s; }
-    .stage-item:hover { background: var(--list-hover); }
-    .stage-item.selected { border-color: var(--vscode-focusBorder); background: rgba(255,255,255,0.02); box-shadow: inset 2px 0 0 var(--vscode-focusBorder); }
-    .stage-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .stage-item-title { font-weight: 600; font-size: 12px; }
-    .stage-item-status { font-size: 10px; font-weight: 600; text-transform: uppercase; }
-    .status-running { color: var(--vscode-charts-blue); }
-    .status-success { color: var(--success); }
+    @keyframes pulse-dots {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
     
-    .sidebar-footer { border-top: 1px solid var(--border); padding: 15px; }
-    .control-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    body { margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; font-family: var(--vscode-font-family); color: var(--text); background: var(--bg); font-size: 12px; }
+    
+    /* SIDEBAR */
+    .sidebar { width: 300px; min-width: 300px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+    .sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); background: rgba(0,0,0,0.1); }
+    .sidebar-title { font-size: 12px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    
+    .input { width: 100%; box-sizing: border-box; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--border); padding: 8px; font-family: var(--font-mono); font-size: 11px; border-radius: 0px; }
+    .input:focus { outline: none; border-color: var(--accent); }
+    
+    .btn { background: var(--accent); color: white; border: none; padding: 8px 12px; cursor: pointer; border-radius: 0px; font-size: 11px; font-weight: bold; text-transform: uppercase; transition: opacity 0.2s; }
+    .btn:hover { opacity: 0.8; }
+    .btn-secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
 
-    /* RIGHT: VISOR */
-    .main { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; min-height: 0; }
+    .stages-list { flex: 1; overflow-y: auto; padding: 12px; gap: 4px; display: flex; flex-direction: column; }
+    .stage-item { 
+      padding: 12px; 
+      border: 1px solid var(--border); 
+      background: var(--bg); 
+      position: relative; 
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .stage-item:hover { border-color: var(--text-muted); }
+    .stage-item.selected { border-left: 3px solid var(--accent); background: rgba(0, 122, 204, 0.05); border-color: var(--accent); }
     
-    .log-panel { background: var(--sidebar-bg); border-bottom: 1px solid var(--border); padding: 10px 20px; display: none; max-height: 150px; overflow-y: auto; }
-    .log-title { font-size: 10px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 0.5px; }
-    .log-item { font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 4px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
-    .log-item:last-child { border-bottom: none; }
+    .stage-item.running { animation: pulse-blue 2s infinite; border-color: var(--accent); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-running { background: var(--accent); animation: pulse-dots 1s infinite; }
+    .status-success { background: var(--success); }
+    .status-error { background: var(--vscode-errorForeground); }
 
-    .visor-header { padding: 15px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--sidebar-bg); }
-    .visor-title { font-weight: 600; font-size: 14px; }
+    .sidebar-footer { border-top: 1px solid var(--border); padding: 16px; background: rgba(0,0,0,0.1); }
+
+    /* MAIN */
+    .main { flex: 1; display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
+    .visor-header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--sidebar-bg); }
+    .visor-title { font-weight: bold; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
     
-    .visor-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; min-height: 0; }
-    .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+    .visor-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+    .section-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; border-left: 2px solid var(--border); padding-left: 8px; }
     
-    .prompt-editor { width: 100%; min-height: 80px; box-sizing: border-box; font-family: var(--vscode-editor-font-family, monospace); }
-    .output-viewer { flex: 1; background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 15px; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; white-space: pre-wrap; overflow-y: auto; line-height: 1.5; color: var(--vscode-editor-foreground); min-height: 0; }
-    
-    .empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); flex-direction: column; opacity: 0.6; }
+    .prompt-editor { width: 100%; min-height: 100px; }
+    .output-viewer { 
+      flex: 1; 
+      background: rgba(0,0,0,0.2); 
+      border: 1px solid var(--border); 
+      padding: 16px; 
+      font-family: var(--font-mono); 
+      font-size: 12px; 
+      color: var(--vscode-editor-foreground);
+      line-height: 1.6;
+      border-radius: 2px;
+    }
+
+    .log-panel { background: var(--sidebar-bg); border-bottom: 1px solid var(--border); padding: 12px 20px; }
+    .log-item { font-family: var(--font-mono); font-size: 11px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
   </style>
 </head>
 <body>
@@ -167,7 +214,10 @@ export class SwarmPanel {
         <span>CopilotSwarm</span>
         <span id="auth-badge" class="auth-badge">Connecting...</span>
       </div>
-      <div style="font-size: 11px; margin-bottom: 6px; color: var(--text-muted);">GLOBAL OBJECTIVE</div>
+      <div style="font-size: 11px; margin-bottom: 6px; color: var(--text-muted); display:flex; justify-content:space-between;">
+        <span>GLOBAL OBJECTIVE</span>
+        <span style="color:var(--vscode-charts-blue);" title="The Swarm automatically reads your workspace structure and open files.">✦ Auto-Context</span>
+      </div>
       <textarea id="obj-input" class="input" placeholder="What should the swarm build?"></textarea>
     </div>
 
@@ -216,6 +266,7 @@ export class SwarmPanel {
       let currentState = { agents: [] };
       let availableModels = [];
       let selectedAgentId = null;
+      let pendingChanges = []; // { path, content }
 
       // Ensure first agent is selected by default if available
       function ensureSelection() {
@@ -245,21 +296,76 @@ export class SwarmPanel {
             if (out) out.innerText += msg.chunk;
           }
         } else if (msg.type === 'fileAction') {
-          logPanel.style.display = 'block';
-          const item = document.createElement('div');
-          item.className = 'log-item';
-          item.innerHTML = \`<span style="color:var(--success)">✔ \${msg.action.path}</span> <a href="#" style="color:var(--vscode-textLink-foreground)" onclick="vscode.postMessage({type:'openFile',path:'\${msg.action.path}'})">Open File</a>\`;
-          logItems.appendChild(item);
+          // Add to pending if not exists or update
+          const idx = pendingChanges.findIndex(c => c.path === msg.action.path);
+          if (idx !== -1) {
+            pendingChanges[idx] = msg.action;
+          } else {
+            pendingChanges.push(msg.action);
+          }
+          renderLogs();
         } else if (msg.type === 'clearLogs') {
-          logItems.innerHTML = '';
-          logPanel.style.display = 'none';
+          pendingChanges = [];
+          renderLogs();
         }
       });
+
+      function renderLogs() {
+        if (pendingChanges.length === 0) {
+          logPanel.style.display = 'none';
+          return;
+        }
+        logPanel.style.display = 'block';
+        logItems.innerHTML = '';
+        
+        const header = document.createElement('div');
+        header.style = "display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; background:rgba(255,255,255,0.03); padding:8px; border-radius:4px;";
+        header.innerHTML = \`
+          <span style="font-weight:bold; color:var(--vscode-charts-orange)">\${pendingChanges.length} PROPOSED CHANGES</span>
+          <button class="btn" style="background:var(--success)" onclick="commitAll()">Commit All Changes</button>
+        \`;
+        logItems.appendChild(header);
+
+        pendingChanges.forEach(change => {
+          const item = document.createElement('div');
+          item.className = 'log-item';
+          item.innerHTML = \`
+            <span><span style="color:var(--vscode-charts-orange)">●</span> \${change.path}</span>
+            <div style="display:flex; gap:10px;">
+               <a href="#" style="color:var(--vscode-textLink-foreground)" onclick="vscode.postMessage({type:'openFile',path:'\${change.path}'})">Open Original</a>
+               <a href="#" style="color:var(--vscode-textLink-foreground)" onclick="reviewChange('\${change.path}')">Review Diff</a>
+            </div>
+          \`;
+          logItems.appendChild(item);
+        });
+      }
+
+      window.reviewChange = (path) => {
+        const change = pendingChanges.find(c => c.path === path);
+        if (change) {
+          vscode.postMessage({ type: 'compareFile', path: change.path, content: change.content });
+        }
+      };
+
+      window.commitAll = () => {
+        if (confirm(\`Apply all \${pendingChanges.length} changes to your workspace?\`)) {
+          vscode.postMessage({ type: 'applyChanges', edits: pendingChanges });
+          pendingChanges = [];
+          renderLogs();
+        }
+      };
 
       window.selectStage = (id) => {
         selectedAgentId = id;
         renderSidebar();
         renderMain();
+      };
+
+      window.handleDeleteStage = (id) => {
+        if (confirm('¿Eliminar este stage?')) {
+          vscode.postMessage({ type: 'removeAgent', agentId: id });
+          selectedAgentId = null;
+        }
       };
 
       function renderSidebar() {
@@ -271,30 +377,27 @@ export class SwarmPanel {
           btnLogin.style.display = 'block';
         }
         document.getElementById('limit-input').value = currentState.quota?.limit || 0;
+      }
 
+      function renderSidebar() {
         stagesList.innerHTML = '';
         currentState.agents.forEach((a, index) => {
           const item = document.createElement('div');
-          item.className = 'stage-item' + (a.id === selectedAgentId ? ' selected' : '');
+          item.className = 'stage-item' + (a.id === selectedAgentId ? ' selected' : '') + (a.status === 'running' ? ' running' : '');
           item.onclick = () => selectStage(a.id);
           
-          // Model Select block click to propagation
-          const modelSelect = \`
-            <select class="input" style="padding:2px; font-size:10px; margin-top:6px;" onclick="event.stopPropagation()" onchange="vscode.postMessage({type:'updateAgentModel',agentId:'\${a.id}',modelId:this.value})">
-              \${availableModels.map(m => \`<option value="\${m}" \${m===a.modelId ? 'selected':''}>\${m}</option>\`).join('')}
-              \${!availableModels.includes(a.modelId) ? \`<option value="\${a.modelId}" selected>\${a.modelId} (Offline)</option>\` : ''}
-            </select>
-          \`;
-
           item.innerHTML = \`
             <div class="stage-item-header">
               <span class="stage-item-title">\${index + 1}. \${a.name}</span>
-              <span class="stage-item-status \${a.status === 'running' ? 'status-running' : (a.status === 'success' ? 'status-success' : '')}">\${a.status}</span>
+              <span class="status-dot status-\${a.status}"></span>
             </div>
-            <div style="font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-              \${a.systemPrompt.substring(0, 40)}...
+            <div style="font-size:10px; color:var(--text-muted); font-family:var(--font-mono); margin-bottom:8px;">
+              PROMPT: \${a.systemPrompt.substring(0, 30)}...
             </div>
-            \${modelSelect}
+            <select class="input" style="padding:2px; font-size:9px;" onclick="event.stopPropagation()" onchange="vscode.postMessage({type:'updateAgentModel',agentId:'\${a.id}',modelId:this.value})">
+              \${availableModels.map(m => \`<option value="\${m}" \${m===a.modelId ? 'selected':''}>\${m}</option>\`).join('')}
+              \${!availableModels.includes(a.modelId) ? \`<option value="\${a.modelId}" selected>\${a.modelId}</option>\` : ''}
+            </select>
           \`;
           stagesList.appendChild(item);
         });
@@ -309,10 +412,14 @@ export class SwarmPanel {
 
         mainVisor.innerHTML = \`
           <div class="visor-header">
-            <div class="visor-title">\${agent.name} <span style="font-weight:normal; font-size:11px; color:var(--text-muted); margin-left:10px;">ID: \${agent.id}</span></div>
-            <button class="btn btn-secondary" style="color:var(--vscode-testing-iconFailedColor)" onclick="vscode.postMessage({type:'removeAgent',agentId:'\${agent.id}'})">Delete Stage</button>
+            <div class="visor-title">STAGE MONITOR // \${agent.name}</div>
+            <button class="btn btn-secondary" style="font-size:10px;" onclick="handleDeleteStage('\${agent.id}')">Drop Stage</button>
           </div>
           <div class="visor-content">
+            <div style="background: rgba(0,122,204,0.1); padding: 12px; border: 1px solid var(--accent); margin-bottom: 5px; font-size: 11px; font-family: var(--font-mono);">
+              <span style="color: var(--accent); font-weight: bold;">[ SYSTEM ]</span> 
+              AUTO-CONTEXT ACTIVE // PROJECT STRUCTURE INDEXED // READY
+            </div>
             <div>
               <div class="section-title">System Instruction / Prompt</div>
               <textarea class="input prompt-editor" onchange="vscode.postMessage({type:'updateAgentPrompt',agentId:'\${agent.id}',systemPrompt:this.value})">\${agent.systemPrompt}</textarea>

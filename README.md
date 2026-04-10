@@ -47,5 +47,8 @@ If you'd rather build it yourself or install the `.vsix` file:
 4. Configure your agents' **System Prompts** (roles).
 5. Click **Run Hierarchy** and watch them collaborate!
 
+## Support
+If you encounter any issues, bugs, or have feature requests, please [open an issue on GitHub](https://github.com/ZendrYz/CopilotSwarm/issues).
+
 ---
 *Created by [ZendrYz](https://github.com/ZendrYz). Focus on privacy and efficiency. No data leaves your machine except for the standard Copilot API calls.*
