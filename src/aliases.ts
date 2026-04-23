@@ -35,8 +35,6 @@ export const ALIAS_MAP: Record<string, string> = {
   'claude opus 4.5':            'claude-opus-4.5',
   'opus 4.6':                   'claude-opus-4.6',
   'claude opus 4.6':            'claude-opus-4.6',
-  'opus fast':                  'claude-opus-4.6-fast',
-  'claude opus fast':           'claude-opus-4.6-fast',
 
   'gemini flash':               'gemini-3-flash',
   'gemini 3 flash':             'gemini-3-flash',
@@ -198,15 +196,6 @@ export const COPILOT_MODELS: CopilotModel[] = [
     multiplierPaid: 3,
     multiplierFree: null,
     plans: { free: false, student: false, pro: true, proPlusAndBusiness: true, enterprise: true },
-    taskArea: 'reasoning',
-  },
-  {
-    id: 'claude-opus-4.6-fast',
-    provider: 'Anthropic',
-    status: 'preview',
-    multiplierPaid: 30,
-    multiplierFree: null,
-    plans: { free: false, student: false, pro: false, proPlusAndBusiness: false, enterprise: true },
     taskArea: 'reasoning',
   },
 

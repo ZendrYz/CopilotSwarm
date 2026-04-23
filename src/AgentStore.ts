@@ -1,10 +1,34 @@
 import * as vscode from 'vscode';
-import { AgentState, AgentConfig } from './types';
+import { AgentState, AgentRole, SwarmConfig, DEFAULT_CONFIG } from './types';
+
+const ROLE_DEFAULTS: Record<AgentRole, { name: string; systemPrompt: string; defaultModel: string }> = {
+  planner: {
+    name: 'Planner',
+    defaultModel: 'gpt-4.1',
+    systemPrompt: `You are the Swarm Planner. Break the task into discrete, logical steps. Identify exactly which files are impacted. Output ONLY the technical plan. No conversational filler.`,
+  },
+  architect: {
+    name: 'Architect',
+    defaultModel: 'gpt-4.1',
+    systemPrompt: `You are the Swarm Architect. Define data structures, API contracts, and logic flow based on the plan. Be precise and technical. No preamble.`,
+  },
+  coder: {
+    name: 'Coder',
+    defaultModel: 'gpt-4.1',
+    systemPrompt: `You are the Swarm Coder. Implement the architecture now. You HAVE write permission. For every change, use: [WRITE_FILE: path]...[/WRITE_FILE]. Zero talk, 100% code.`,
+  },
+  arbitrator: {
+    name: 'Arbitrator',
+    defaultModel: 'claude-sonnet-4.6',
+    systemPrompt: `You are the Swarm Arbitrator. Verify the solution against the objective. If any file is buggy or missing, rewrite it immediately with [WRITE_FILE: path]. End with a summary of changes.`,
+  },
+};
 
 export class AgentStore {
   private _agents: AgentState[] = [];
   private _totalTokens: number = 0;
-  private _tokenLimit: number = 0;
+  private _config: SwarmConfig = { ...DEFAULT_CONFIG };
+  private _deepModeCount: number = 0; // Track consecutive deep mode uses
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   public readonly onDidChange = this._onDidChange.event;
 
@@ -12,33 +36,46 @@ export class AgentStore {
     this._load();
   }
 
-  public all(): AgentState[] {
-    return [...this._agents];
-  }
+  // ── Agent Access ──
+  public all(): AgentState[] { return [...this._agents]; }
+  public getByRole(role: AgentRole): AgentState | undefined { return this._agents.find(a => a.role === role); }
 
+  // ── Token Tracking ──
   public getTotalTokens(): number { return this._totalTokens; }
-  public getTokenLimit(): number { return this._tokenLimit; }
-  public setTokenLimit(limit: number) { this._tokenLimit = limit; this._save(); }
+  public getTokenLimit(): number { return this._config.tokenBudget; }
+  public setTokenLimit(limit: number) { this._config.tokenBudget = limit; this._save(); }
   public incrementTotalTokens(amount: number) { this._totalTokens += amount; this._save(); }
 
-  public add(config: AgentConfig) {
-    const id = Math.random().toString(36).substring(2, 9);
-    this._agents.push({
-      id,
-      name: config.name,
-      modelId: config.modelId,
-      systemPrompt: config.systemPrompt,
-      objective: '',
-      status: 'idle'
+  // ── Config ──
+  public getConfig(): SwarmConfig { return { ...this._config }; }
+  public updateConfig(patch: Partial<SwarmConfig>) {
+    this._config = { ...this._config, ...patch };
+    this._refreshAgents();
+    this._save();
+  }
+
+  private _refreshAgents() {
+    this._agents.forEach(agent => {
+      const def = ROLE_DEFAULTS[agent.role];
+      if (agent.role === 'planner' || agent.role === 'architect') {
+        // plannerModel applies to planner and architect only
+        agent.modelId = this._config.plannerModel || (def?.defaultModel ?? 'gpt-4.1');
+      } else if (agent.role === 'coder') {
+        agent.modelId = this._config.coderModel || (def?.defaultModel ?? 'gpt-4.1');
+      } else if (agent.role === 'arbitrator') {
+        // Arbitrator always keeps its own default (claude-sonnet-4.6) unless explicitly overridden
+        // It is NOT affected by plannerModel - it has the best model by design
+        agent.modelId = def?.defaultModel ?? 'claude-sonnet-4.6';
+      }
     });
-    this._save();
   }
 
-  public remove(id: string) {
-    this._agents = this._agents.filter(a => a.id !== id);
-    this._save();
-  }
+  // ── Deep Mode Counter ──
+  public getDeepModeCount(): number { return this._deepModeCount; }
+  public incrementDeepMode() { this._deepModeCount++; this._save(); }
+  public resetDeepMode() { this._deepModeCount = 0; this._save(); }
 
+  // ── Patch Agent ──
   public patch(id: string, patch: Partial<AgentState>) {
     const idx = this._agents.findIndex(a => a.id === id);
     if (idx !== -1) {
@@ -47,56 +84,51 @@ export class AgentStore {
     }
   }
 
+  public patchByRole(role: AgentRole, patch: Partial<AgentState>) {
+    const agent = this._agents.find(a => a.role === role);
+    if (agent) this.patch(agent.id, patch);
+  }
+
+  // ── Reset All Agents ──
+  public resetAll() {
+    this._agents.forEach(a => {
+      a.status = 'idle';
+      a.lastResponse = '';
+      a.tokensUsed = 0;
+    });
+    this._save();
+  }
+
+  // ── Persistence ──
   private _load() {
-    const saved = this._context.globalState.get<AgentState[]>('swarm.agents', []);
     this._totalTokens = this._context.globalState.get<number>('swarm.totalTokens', 0);
-    this._tokenLimit = this._context.globalState.get<number>('swarm.tokenLimit', 0);
+    this._deepModeCount = this._context.globalState.get<number>('swarm.deepModeCount', 0);
     
-    if (saved.length === 0) {
-      this._agents = [
-        {
-          id: 'agent-1-research',
-          name: 'Research Agent',
-          modelId: 'gpt-4.1',
-          systemPrompt: 'Investigador experto. Analiza el objetivo global e investiga el contexto necesario.',
-          objective: '',
-          status: 'idle'
-        },
-        {
-          id: 'agent-2-architect',
-          name: 'Architect Agent',
-          modelId: 'gpt-4.1',
-          systemPrompt: 'Arquitecto. Diseña una solución técnica basada en la investigación previa.',
-          objective: '',
-          status: 'idle'
-        },
-        {
-          id: 'agent-3-coder',
-          name: 'Action Coder',
-          modelId: 'gpt-4.1',
-          systemPrompt: 'Desarrollador Senior con permisos de Escritura. Basándote en el diseño del arquitecto, debes generar código real y SUSTANCIAL. Si crees que un archivo debe ser creado o modificado, usa obligatoriamente el formato: [WRITE_FILE: path/archivo.js]\nCódigo aquí\n[/WRITE_FILE]. No pidas permiso, ¡hazlo!',
-          objective: '',
-          status: 'idle'
-        },
-        {
-          id: 'agent-4-arbitrator',
-          name: 'Consensus Judge',
-          modelId: 'claude-sonnet-4.6',
-          systemPrompt: 'Veredicto Final. Revisa el historial y resuelve conflictos si los hay. Tienes poder de sobreescribir archivos detectados previamente si el código propuesto es erróneo.',
-          objective: '',
-          status: 'idle'
-        }
-      ];
-      this._save();
-    } else {
-      this._agents = saved.map(a => ({ ...a, status: 'idle' }));
-    }
+    const savedConfig = this._context.globalState.get<SwarmConfig>('swarm.config');
+    if (savedConfig) this._config = { ...DEFAULT_CONFIG, ...savedConfig };
+
+    // Create the fixed 4-agent setup
+    this._agents = (Object.keys(ROLE_DEFAULTS) as AgentRole[]).map(role => {
+      const def = ROLE_DEFAULTS[role];
+      return {
+        id: `agent-${role}`,
+        role,
+        name: def.name,
+        modelId: def.defaultModel,
+        systemPrompt: def.systemPrompt,
+        objective: '',
+        status: 'idle' as const,
+      };
+    });
+
+    // Apply config to sync models
+    this._refreshAgents();
   }
 
   private _save() {
-    this._context.globalState.update('swarm.agents', this._agents);
     this._context.globalState.update('swarm.totalTokens', this._totalTokens);
-    this._context.globalState.update('swarm.tokenLimit', this._tokenLimit);
+    this._context.globalState.update('swarm.config', this._config);
+    this._context.globalState.update('swarm.deepModeCount', this._deepModeCount);
     this._onDidChange.fire();
   }
 

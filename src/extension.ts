@@ -4,7 +4,7 @@ import { SwarmEngine } from './SwarmEngine';
 import { SwarmPanel } from './SwarmPanel';
 
 export async function activate(context: vscode.ExtensionContext) {
-  console.log('Copilot Swarm Control activated.');
+  console.log('CopilotSwarm v2 activated.');
 
   const store = new AgentStore(context);
   const engine = new SwarmEngine(store);

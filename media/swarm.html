@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --bg: var(--vscode-editor-background);
+      --bg-elevated: var(--vscode-sideBar-background);
+      --border: var(--vscode-panel-border);
+      --text: var(--vscode-foreground);
+      --text-muted: var(--vscode-descriptionForeground);
+      --accent: var(--vscode-button-background, #0e639c);
+      --accent-glow: transparent;
+      --input-bg: var(--vscode-input-background);
+      --input-fg: var(--vscode-input-foreground);
+      --success: var(--vscode-testing-iconPassed, #73c991);
+      --warning: var(--vscode-problemsWarningIcon-foreground, #cca700);
+      --error: var(--vscode-errorForeground, #f48771);
+      --blue: var(--vscode-textLink-foreground, #3794ff);
+      --font-mono: var(--vscode-editor-font-family, 'SF Mono', Monaco, monospace);
+      --radius: 8px;
+      --radius-sm: 4px;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+      --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+      --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 0.4;
+      }
+
+      50% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0;
+      }
+
+      100% {
+        background-position: 200% 0;
+      }
+    }
+
+    @keyframes glow-pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 var(--accent-glow);
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px transparent;
+      }
+    }
+
+    body {
+      font-family: var(--vscode-font-family);
+      color: var(--text);
+      background: var(--bg);
+      font-size: 13px;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── HEADER BAR ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      min-height: 48px;
+      flex-shrink: 0;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-logo {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--vscode-button-foreground, white);
+      font-weight: bold;
+    }
+
+    .header-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .header-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background var(--transition);
+    }
+
+    .header-status.connected .dot {
+      background: var(--success);
+    }
+
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      width: 30px;
+      height: 30px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all var(--transition);
+    }
+
+    .icon-btn:hover {
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      color: var(--text);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── LEFT: CONTROL PANEL ── */
+    .control-panel {
+      width: 380px;
+      min-width: 380px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-elevated);
+      overflow-y: auto;
+    }
+
+    .section {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── ACTION BUTTONS GRID ── */
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .action-btn {
+      position: relative;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 12px;
+      cursor: pointer;
+      text-align: left;
+      transition: all var(--transition);
+      overflow: hidden;
+    }
+
+    .action-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0;
+      transition: opacity var(--transition);
+    }
+
+    .action-btn:hover {
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+
+    .action-btn:hover::before {
+      opacity: 1;
+    }
+
+    .action-btn.selected {
+      border-color: var(--accent);
+      background: var(--bg-elevated);
+    }
+
+    .action-btn.selected::before {
+      opacity: 1;
+    }
+
+    .action-btn-icon {
+      font-size: 18px;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    .action-btn-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .action-btn-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+      line-height: 1.3;
+    }
+
+    /* ── OBJECTIVE INPUT ── */
+    .objective-wrap {
+      position: relative;
+    }
+
+    .objective-input {
+      width: 100%;
+      min-height: 80px;
+      max-height: 200px;
+      resize: vertical;
+      background: var(--input-bg);
+      color: var(--input-fg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+      transition: border-color var(--transition);
+    }
+
+    .objective-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .objective-input::placeholder {
+      color: var(--text-muted);
+      opacity: 0.6;
+    }
+
+    .context-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--accent);
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+
+    /* ── MODE TOGGLE ── */
+    .mode-toggle {
+      display: flex;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .mode-option {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+      transition: all var(--transition);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .mode-option:not(:last-child) {
+      border-right: 1px solid var(--border);
+    }
+
+    .mode-option:hover {
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .mode-option.active {
+      background: var(--accent);
+      color: white;
+    }
+
+    .mode-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      line-height: 1.4;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: var(--radius-sm);
+    }
+
+    /* ── RUN BUTTON ── */
+    .run-section {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+      background: var(--bg-elevated);
+    }
+
+    .btn-run {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      background: var(--accent);
+      color: var(--vscode-button-foreground, white);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background var(--transition);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-run:hover {
+      background: var(--vscode-button-hoverBackground, #1177bb);
+    }
+
+    .btn-run:active {
+      opacity: 0.8;
+    }
+
+    .btn-run.running {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .btn-stop {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--error);
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--error);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all var(--transition);
+      text-transform: uppercase;
+    }
+
+    .btn-stop:hover {
+      background: var(--error);
+      color: white;
+    }
+
+    /* ── RIGHT: OUTPUT PANEL ── */
+    .output-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg);
+    }
+
+    /* ── AGENT TIMELINE ── */
+    .timeline {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      position: relative;
+      flex-shrink: 0;
+      gap: 0;
+    }
+
+    .timeline-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      z-index: 2;
+      cursor: pointer;
+      transition: all var(--transition);
+      min-width: 80px;
+    }
+
+    .step-circle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: bold;
+      color: var(--text-muted);
+      transition: all var(--transition);
+      box-shadow: 0 0 0 4px var(--bg-elevated);
+    }
+
+    .timeline-step:hover .step-circle {
+      border-color: var(--text-muted);
+      color: var(--text);
+    }
+
+    .timeline-step.active .step-circle {
+      border-color: var(--text);
+      color: var(--vscode-button-foreground, white);
+      background: var(--accent);
+      box-shadow: 0 0 0 4px var(--bg-elevated);
+    }
+
+    .timeline-step.done .step-circle {
+      background: var(--success);
+      border-color: var(--success);
+      color: white;
+    }
+
+    .timeline-step.error .step-circle {
+      background: var(--error);
+      border-color: var(--error);
+      color: white;
+    }
+
+    .step-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .timeline-step.skipped .step-circle {
+      background: var(--bg);
+      border-color: var(--text-muted);
+      border-style: dashed;
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .timeline-step.skipped .step-label {
+      color: var(--text-muted);
+      opacity: 0.5;
+    }
+
+    .timeline-step.active .step-label {
+      color: var(--accent);
+    }
+
+    .timeline-step.done .step-label {
+      color: var(--success);
+    }
+
+    .timeline-step.selected .step-label {
+      text-decoration: underline;
+      color: var(--text);
+    }
+
+    .timeline-connector {
+      flex: 1;
+      height: 2px;
+      background: var(--border);
+      margin: 0 -10px;
+      transform: translateY(-10px);
+      z-index: 1;
+      max-width: 60px;
+    }
+
+    .timeline-connector.done {
+      background: var(--success);
+    }
+
+    /* ── AGENT INFO BAR ── */
+    .agent-info-bar {
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      font-size: 11px;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .info-tag {
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--border);
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .info-tag.role {
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    /* ── PROPOSED CHANGES BANNER ── */
+    .changes-banner {
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(245, 158, 11, 0.06);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .changes-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .changes-count {
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--warning);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-commit {
+      padding: 6px 16px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: var(--success);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all var(--transition);
+      text-transform: uppercase;
+    }
+
+    .btn-commit:hover {
+      background: #059669;
+      transform: translateY(-1px);
+    }
+
+    .change-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .change-item:last-child {
+      border-bottom: none;
+    }
+
+    .change-path {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .change-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .change-actions a {
+      color: var(--blue);
+      text-decoration: none;
+      font-size: 10px;
+      cursor: pointer;
+      transition: opacity var(--transition);
+    }
+
+    .change-actions a:hover {
+      opacity: 0.7;
+    }
+
+    /* ── OUTPUT TABS ── */
+    .output-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .output-tab {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all var(--transition);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .output-tab:hover {
+      color: var(--text);
+    }
+
+    .output-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* ── OUTPUT CONTENT ── */
+    .output-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .output-stream {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text);
+    }
+
+    /* ── MARKDOWN & THINKING ── */
+    .think-block {
+      border-left: 2px solid var(--border);
+      padding-left: 10px;
+      margin: 10px 0;
+      color: var(--text-muted);
+      font-style: italic;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    }
+    .think-block summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--accent);
+      outline: none;
+      list-style: none;
+      font-style: normal;
+      padding: 8px 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .think-block summary:before {
+      content: '🧠 ';
+    }
+    .think-block summary::-webkit-details-marker {
+      display: none;
+    }
+    .think-block div {
+      padding-bottom: 10px;
+      white-space: pre-wrap;
+    }
+    .md-code {
+      background: var(--bg-elevated);
+      padding: 2px 4px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      color: #38bdf8;
+    }
+    .md-code-block {
+      background: var(--bg-elevated);
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      overflow-x: auto;
+      margin: 12px 0;
+      white-space: pre;
+      color: #e2e8f0;
+      font-size: 11px;
+    }
+    .md-h2 {
+      margin-top: 20px;
+      margin-bottom: 10px;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 5px;
+      font-size: 14px;
+    }
+    .md-h3 {
+      margin-top: 15px;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      padding: 40px;
+      animation: fadeIn 0.5s ease;
+    }
+
+    .empty-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+
+    .empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .empty-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 300px;
+      line-height: 1.5;
+    }
+
+    /* ── SETTINGS OVERLAY ── */
+    .settings-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .settings-panel {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 480px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: var(--shadow-md);
+      animation: slideUp 0.3s ease;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .settings-title {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .settings-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition);
+    }
+
+    .settings-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text);
+    }
+
+    .settings-body {
+      padding: 20px;
+    }
+
+    .setting-group {
+      margin-bottom: 20px;
+    }
+
+    .setting-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .setting-hint {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .setting-select,
+    .setting-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--input-bg);
+      color: var(--input-fg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      transition: border-color var(--transition);
+    }
+
+    .setting-select:focus,
+    .setting-input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .settings-save {
+      width: 100%;
+      padding: 10px;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all var(--transition);
+    }
+
+    .settings-save:hover {
+      opacity: 0.9;
+    }
+
+    /* ── SUMMARY CARD ── */
+    .summary-card {
+      margin: 20px;
+      padding: 16px;
+      border: 1px solid var(--success);
+      border-radius: var(--radius);
+      background: rgba(16, 185, 129, 0.06);
+      animation: slideUp 0.3s ease;
+    }
+
+    .summary-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--success);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-text {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text);
+      font-family: var(--font-mono);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="header">
+    <div class="header-brand">
+      <div class="header-logo">⚡</div>
+      <span class="header-title">CopilotSwarm</span>
+    </div>
+    <div class="header-actions">
+      <div class="header-status" id="auth-status" style="cursor: pointer" onclick="requestAuth()" title="Click to connect Copilot">
+        <span class="dot"></span>
+        <span id="auth-label">Connecting...</span>
+      </div>
+      <button class="icon-btn" id="btn-settings" title="Advanced Settings">⚙</button>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="main-layout">
+
+    <!-- LEFT: CONTROL PANEL -->
+    <div class="control-panel">
+
+      <!-- Task Type Selection -->
+      <div class="section">
+        <div class="section-label">① Choose Task</div>
+        <div class="action-grid" id="action-grid">
+          <button class="action-btn selected" data-task="feature" onclick="selectTask('feature')">
+            <span class="action-btn-icon">✦</span>
+            <span class="action-btn-label">New Feature</span>
+            <span class="action-btn-desc">Build something new</span>
+          </button>
+          <button class="action-btn" data-task="refactor" onclick="selectTask('refactor')">
+            <span class="action-btn-icon">⟲</span>
+            <span class="action-btn-label">Refactor</span>
+            <span class="action-btn-desc">Clean & modernize</span>
+          </button>
+          <button class="action-btn" data-task="tests" onclick="selectTask('tests')">
+            <span class="action-btn-icon">✓</span>
+            <span class="action-btn-label">Tests & Docs</span>
+            <span class="action-btn-desc">Generate tests & docs</span>
+          </button>
+          <button class="action-btn" data-task="debug" onclick="selectTask('debug')">
+            <span class="action-btn-icon">⚡</span>
+            <span class="action-btn-label">Debug & Fix</span>
+            <span class="action-btn-desc">Find & solve bugs</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Objective Input -->
+      <div class="section">
+        <div class="section-label">② Describe What You Need</div>
+        <div class="objective-wrap">
+          <textarea id="obj-input" class="objective-input"
+            placeholder="Describe your task here...&#10;&#10;Examples:&#10;• Add login with Google OAuth&#10;• Refactor the API routes to use middleware&#10;• Write tests for the auth module"></textarea>
+          <div class="context-badge">✦ Auto-Context: workspace files indexed</div>
+        </div>
+      </div>
+
+      <!-- Mode Toggle -->
+      <div class="section">
+        <div class="section-label">③ Processing Mode</div>
+        <div class="mode-toggle" id="mode-toggle">
+          <button class="mode-option" data-mode="quick" onclick="selectMode('quick')">⚡ Quick</button>
+          <button class="mode-option active" data-mode="auto" onclick="selectMode('auto')">🔄 Auto</button>
+          <button class="mode-option" data-mode="deep" onclick="selectMode('deep')">🧠 Deep</button>
+        </div>
+        <div class="mode-desc" id="mode-desc">
+          Auto mode detects task complexity and picks the best approach automatically.
+        </div>
+      </div>
+
+      <!-- Run -->
+      <div class="run-section">
+        <button class="btn-run" id="btn-run" onclick="handleRun()">
+          ▶ Run Swarm
+        </button>
+        <button class="btn-stop" id="btn-stop" onclick="handleStop()" style="display:none">
+          ■ Stop Execution
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT: OUTPUT PANEL -->
+    <div class="output-panel">
+
+      <!-- Agent Timeline -->
+      <div class="timeline" id="timeline">
+        <div class="timeline-step" data-role="planner" id="step-planner" onclick="viewAgent('agent-planner')">
+          <div class="step-circle">1</div>
+          <div class="step-label">Planner</div>
+        </div>
+        <div class="timeline-connector" id="conn-1"></div>
+        <div class="timeline-step" data-role="architect" id="step-architect" onclick="viewAgent('agent-architect')">
+          <div class="step-circle">2</div>
+          <div class="step-label">Architect</div>
+        </div>
+        <div class="timeline-connector" id="conn-2"></div>
+        <div class="timeline-step" data-role="coder" id="step-coder" onclick="viewAgent('agent-coder')">
+          <div class="step-circle">3</div>
+          <div class="step-label">Coder</div>
+        </div>
+        <div class="timeline-connector" id="conn-3"></div>
+        <div class="timeline-step" data-role="arbitrator" id="step-arbitrator" onclick="viewAgent('agent-arbitrator')">
+          <div class="step-circle">4</div>
+          <div class="step-label">Arbitrator</div>
+        </div>
+      </div>
+
+      <!-- Agent Info Bar -->
+      <div id="agent-info-bar" class="agent-info-bar" style="display:none"></div>
+
+      <!-- Proposed Changes Banner -->
+      <div id="changes-banner" class="changes-banner" style="display:none"></div>
+
+      <!-- Output Tabs -->
+      <div class="output-tabs" id="output-tabs">
+        <div class="output-tab active" data-tab="stream" onclick="switchTab('stream')">Live Output</div>
+        <div class="output-tab" data-tab="summary" onclick="switchTab('summary')">Summary</div>
+      </div>
+
+      <!-- Output Content -->
+      <div class="output-content" id="output-content" style="position:relative">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">🐝</div>
+          <div class="empty-title">Ready to Swarm</div>
+          <div class="empty-desc">Choose a task, describe what you need, and let the agents work together.</div>
+        </div>
+        <div class="output-stream" id="output-stream" style="display:none"></div>
+        <div id="summary-view" style="display:none"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ SETTINGS OVERLAY ═══ -->
+  <div class="settings-overlay" id="settings-overlay" style="display:none" onclick="closeSettings(event)">
+    <div class="settings-panel" onclick="event.stopPropagation()">
+      <div class="settings-header">
+        <span class="settings-title">⚙ Advanced Configuration</span>
+        <button class="settings-close" onclick="toggleSettings()">✕</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-group">
+          <div class="setting-label">Model for Planner & Architect</div>
+          <div class="setting-hint">Used for planning and architecture design. The Arbitrator uses its own dedicated model (not affected by this setting). More intelligent = better quality.</div>
+          <select class="setting-select" id="cfg-planner-model">
+            <option value="">Default (use Copilot's model)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <div class="setting-label">Model for Coder</div>
+          <div class="setting-hint">Used for writing code. Faster models save requests.</div>
+          <select class="setting-select" id="cfg-coder-model">
+            <option value="">Default (use Copilot's model)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <div class="setting-label">Default Processing Mode</div>
+          <select class="setting-select" id="cfg-default-mode">
+            <option value="auto">Auto (recommended)</option>
+            <option value="quick">Quick (2-3 requests)</option>
+            <option value="deep">Deep (4 agents)</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <div class="setting-label">Token Budget per Task</div>
+          <div class="setting-hint">Maximum tokens to spend per task. Set 0 for unlimited.</div>
+          <input type="number" class="setting-input" id="cfg-budget" value="0" min="0" step="1000">
+        </div>
+        <button class="settings-save" onclick="saveSettings()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const vscode = acquireVsCodeApi();
+
+      // ── State ──
+      let currentState = { agents: [], config: {}, quota: null };
+      let availableModels = [];
+      let selectedTask = 'feature';
+      let selectedMode = 'auto';
+      let viewingAgentId = null;
+      let pendingChanges = [];
+      let isRunning = false;
+      let currentTab = 'stream';
+      let pipelineSummary = '';
+      let agentOutputs = {}; // { agentId: text }
+
+      // ── Message Handler ──
+      window.addEventListener('message', e => {
+        const msg = e.data;
+
+        if (msg.type === 'state') {
+          currentState = msg.state;
+          availableModels = msg.availableModels || [];
+          updateAuthUI();
+          populateSettingsModels();
+          applyConfigToUI();
+          
+          // Refresh current view if an agent is selected
+          if (viewingAgentId) viewAgent(viewingAgentId);
+        }
+
+        else if (msg.type === 'streamChunk') {
+          const agent = currentState.agents.find(a => a.id === msg.agentId);
+          if (agent) agent.lastResponse = (agent.lastResponse || '') + msg.chunk;
+
+          // Track full output
+          agentOutputs[msg.agentId] = (agentOutputs[msg.agentId] || '') + msg.chunk;
+
+          // Show in stream if viewing this agent or no specific agent selected
+          if (!viewingAgentId || viewingAgentId === msg.agentId) {
+            const stream = document.getElementById('output-stream');
+            const empty = document.getElementById('empty-state');
+            if (empty) empty.style.display = 'none';
+            if (stream) {
+              stream.style.display = 'block';
+              stream.innerHTML = parseMarkdown(agentOutputs[msg.agentId]);
+              // Smart Auto-scroll: Only scroll if the user is near the bottom
+              const container = document.getElementById('output-content');
+              if (container) {
+                const isAtBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 60;
+                if (isAtBottom) {
+                  container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                }
+              }
+            }
+          }
+        }
+
+        else if (msg.type === 'pipelineUpdate') {
+          updateTimeline(msg.pipeline);
+
+          if (msg.pipeline.phase === 'done' || msg.pipeline.phase === 'error') {
+            isRunning = false;
+            updateRunButton();
+            if (msg.pipeline.summary) {
+              pipelineSummary = msg.pipeline.summary;
+            }
+          } else {
+            isRunning = true;
+            updateRunButton();
+          }
+
+          // Auto-switch to active agent's output
+          if (msg.pipeline.activeAgents && msg.pipeline.activeAgents.length > 0) {
+            const activeRole = msg.pipeline.activeAgents[0];
+            viewAgent('agent-' + activeRole);
+          }
+        }
+
+        else if (msg.type === 'fileAction') {
+          const idx = pendingChanges.findIndex(c => c.path === msg.action.path);
+          if (idx !== -1) pendingChanges[idx] = msg.action;
+          else pendingChanges.push(msg.action);
+          renderChanges();
+        }
+
+        else if (msg.type === 'clearLogs') {
+          pendingChanges = [];
+          renderChanges();
+        }
+
+        else if (msg.type === 'changesApplied') {
+          // Native dialog confirmed, changes were applied - clear the list
+          pendingChanges = [];
+          renderChanges();
+        }
+      });
+
+      // ── Task Selection ──
+      window.selectTask = (task) => {
+        selectedTask = task;
+        document.querySelectorAll('.action-btn').forEach(b => {
+          b.classList.toggle('selected', b.dataset.task === task);
+        });
+
+        // Update placeholder based on task
+        const placeholders = {
+          feature: 'Describe the feature you want to build...\n\nExamples:\n• Add login with Google OAuth\n• Create a REST API for user profiles',
+          refactor: 'Describe what code to refactor...\n\nExamples:\n• Clean up the API routes to use middleware\n• Convert class components to hooks',
+          tests: 'Which code needs tests/docs?\n\nExamples:\n• Write unit tests for the auth module\n• Add JSDoc to all exported functions',
+          debug: 'Describe the bug or paste the error...\n\nExamples:\n• TypeError: Cannot read property of undefined at line 42\n• Login redirects to blank page after OAuth',
+        };
+        document.getElementById('obj-input').placeholder = placeholders[task] || '';
+      };
+
+      // ── Mode Selection ──
+      window.selectMode = (mode) => {
+        selectedMode = mode;
+        document.querySelectorAll('.mode-option').forEach(b => {
+          b.classList.toggle('active', b.dataset.mode === mode);
+        });
+
+        const descs = {
+          quick: 'Quick mode uses 2-3 requests. Planner + Coder combined, with a fast Arbitrator review. Best for simple tasks.',
+          auto: 'Auto mode detects task complexity and picks the best approach automatically.',
+          deep: 'Deep mode uses all 4 agents with full coordination. Best for complex, multi-file tasks. Uses more requests.',
+        };
+        document.getElementById('mode-desc').textContent = descs[mode] || '';
+      };
+
+      // ── Run ──
+      window.handleRun = () => {
+        const objective = document.getElementById('obj-input').value.trim();
+        if (!objective) return;
+
+        // Reset state
+        agentOutputs = {};
+        pipelineSummary = '';
+        viewingAgentId = null;
+        const stream = document.getElementById('output-stream');
+        if (stream) { stream.innerText = ''; stream.style.display = 'block'; }
+        document.getElementById('empty-state').style.display = 'none';
+
+        isRunning = true;
+        updateRunButton();
+        resetTimeline();
+
+        vscode.postMessage({
+          type: 'run',
+          objective,
+          taskType: selectedTask,
+          mode: selectedMode,
+        });
+      };
+
+      window.handleStop = () => {
+        vscode.postMessage({ type: 'stopAll' });
+        isRunning = false;
+        updateRunButton();
+      };
+
+      // ── Timeline ──
+      function updateTimeline(pipeline) {
+        const roles = ['planner', 'architect', 'coder', 'arbitrator'];
+
+        roles.forEach((role, i) => {
+          const step = document.getElementById('step-' + role);
+          if (!step) return;
+
+          step.classList.remove('active', 'done', 'error', 'skipped');
+
+          if (pipeline.activeAgents.includes(role)) step.classList.add('active');
+          else if (pipeline.completedAgents.includes(role)) step.classList.add('done');
+
+          // Check agent specific status
+          const agent = currentState.agents.find(a => a.role === role);
+          if (agent) {
+            if (agent.status === 'skipped') step.classList.add('skipped');
+            if (agent.status === 'error') step.classList.add('error');
+          }
+
+          // Connectors
+          if (i < 3) {
+            const conn = document.getElementById('conn-' + (i + 1));
+            if (conn) {
+              conn.classList.toggle('done', pipeline.completedAgents.includes(role));
+            }
+          }
+        });
+
+        // Refresh view for current agent info bar if active
+        if (viewingAgentId) viewAgent(viewingAgentId);
+      }
+
+      function resetTimeline() {
+        ['planner', 'architect', 'coder', 'arbitrator'].forEach((role, i) => {
+          const step = document.getElementById('step-' + role);
+          if (step) step.classList.remove('active', 'done', 'error', 'skipped', 'selected');
+          if (i < 3) {
+            const conn = document.getElementById('conn-' + (i + 1));
+            if (conn) conn.classList.remove('done');
+          }
+        });
+        document.getElementById('agent-info-bar').style.display = 'none';
+      }
+
+
+      // ── View Agent Output ──
+      window.viewAgent = (agentId) => {
+        viewingAgentId = agentId;
+        const stream = document.getElementById('output-stream');
+        const empty = document.getElementById('empty-state');
+        const infoBar = document.getElementById('agent-info-bar');
+
+        // Highlight timeline step
+        document.querySelectorAll('.timeline-step').forEach(s => {
+          s.classList.toggle('selected', s.id === 'step-' + agentId.replace('agent-', ''));
+        });
+
+        const agent = currentState.agents.find(a => a.id === agentId);
+        if (agent) {
+          // Determine status color
+          const statusColors = { running: 'var(--accent)', success: 'var(--success)', error: 'var(--error)', skipped: 'var(--text-muted)', idle: 'var(--text-muted)' };
+          const statusColor = statusColors[agent.status] || 'var(--text-muted)';
+          const promptPreview = agent.systemPrompt.length > 80
+            ? escapeHtml(agent.systemPrompt.substring(0, 80)) + '...'
+            : escapeHtml(agent.systemPrompt);
+
+          infoBar.style.display = 'flex';
+          infoBar.innerHTML = `
+        <span class="info-tag role">${escapeHtml(agent.name)}</span>
+        <span class="info-tag">${escapeHtml(agent.modelId)}</span>
+        <span style="color:var(--text-muted); flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+          Status: <span style="color:${statusColor}">${agent.status.toUpperCase()}</span>
+          &nbsp;|&nbsp;
+          Role: ${promptPreview}
+        </span>
+      `;
+
+          if (agentOutputs[agentId]) {
+            empty.style.display = 'none';
+            stream.style.display = 'block';
+            stream.innerHTML = parseMarkdown(agentOutputs[agentId]);
+          } else {
+            stream.style.display = 'none';
+            empty.style.display = 'flex';
+            empty.querySelector('.empty-title').textContent = 'Waiting for ' + escapeHtml(agent.name);
+            const desc = agent.status === 'running'
+              ? 'Still thinking and generating code...'
+              : agent.status === 'skipped'
+              ? 'Skipped in this mode (Quick Mode)'
+              : agent.status === 'error'
+              ? 'An error occurred. Check Live Output for details.'
+              : 'This agent has not started yet.';
+            empty.querySelector('.empty-desc').textContent = desc;
+          }
+        }
+      };
+
+
+      // ── Tabs ──
+      window.switchTab = (tab) => {
+        currentTab = tab;
+        document.querySelectorAll('.output-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+
+        const stream = document.getElementById('output-stream');
+        const summary = document.getElementById('summary-view');
+        const empty = document.getElementById('empty-state');
+
+        if (tab === 'stream') {
+          // Check if there's any visible output - viewingAgentId may be null (global view)
+          const hasOutput = viewingAgentId
+            ? !!agentOutputs[viewingAgentId]
+            : Object.keys(agentOutputs).length > 0;
+          stream.style.display = hasOutput ? 'block' : 'none';
+          summary.style.display = 'none';
+          empty.style.display = (!hasOutput && !isRunning) ? 'flex' : 'none';
+        } else {
+          stream.style.display = 'none';
+          empty.style.display = 'none';
+          summary.style.display = 'block';
+          summary.innerHTML = pipelineSummary
+            ? '<div class="summary-card"><div class="summary-title">✅ Swarm Summary</div><div class="summary-text">' + escapeHtml(pipelineSummary) + '</div></div>'
+            : '<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">No Summary Yet</div><div class="empty-desc">Summary will appear after the swarm finishes.</div></div>';
+        }
+      };
+
+      // ── Changes Banner ──
+      function renderChanges() {
+        const banner = document.getElementById('changes-banner');
+        if (pendingChanges.length === 0) { banner.style.display = 'none'; return; }
+        banner.style.display = 'block';
+
+        let html = '<div class="changes-header">';
+        html += '<span class="changes-count">⚠ ' + pendingChanges.length + ' Proposed Changes</span>';
+        html += '<button class="btn-commit" onclick="commitAll()">✓ Apply All</button>';
+        html += '</div>';
+
+        pendingChanges.forEach((c, i) => {
+          html += '<div class="change-item">';
+          html += '<span class="change-path"><span style="color:var(--warning)">●</span> ' + escapeHtml(c.path) + '</span>';
+          html += '<span class="change-actions">';
+          html += '<a onclick="openOriginal(' + i + ')">Open</a>';
+          html += '<a onclick="reviewDiff(' + i + ')">Review Diff</a>';
+          html += '<a onclick="removeChange(' + i + ')" style="color:var(--error)">Discard</a>';
+          html += '</span></div>';
+        });
+
+        banner.innerHTML = html;
+      }
+
+      window.openOriginal = (i) => {
+        const change = pendingChanges[i];
+        if (change) vscode.postMessage({ type: 'openFile', path: change.path });
+      };
+
+      window.reviewDiff = (i) => {
+        const change = pendingChanges[i];
+        if (change) vscode.postMessage({ type: 'compareFile', path: change.path, content: change.content });
+      };
+
+      window.removeChange = (i) => {
+        pendingChanges.splice(i, 1);
+        if (pendingChanges.length === 0) vscode.postMessage({ type: 'clearLogs' });
+        renderChanges();
+      };
+
+      window.commitAll = () => {
+        // window.confirm() does not work in VSCode webviews - use postMessage to trigger a native dialog
+        vscode.postMessage({
+          type: 'confirmApply',
+          count: pendingChanges.length,
+          edits: pendingChanges
+        });
+      };
+
+      // ── Run Button State ──
+      function updateRunButton() {
+        const run = document.getElementById('btn-run');
+        const stop = document.getElementById('btn-stop');
+
+        if (isRunning) {
+          run.classList.add('running');
+          run.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> Swarm Working...';
+          run.disabled = true;
+          stop.style.display = 'block';
+        } else {
+          run.classList.remove('running');
+          run.innerHTML = '▶ Run Swarm';
+          run.disabled = false;
+          stop.style.display = 'none';
+        }
+      }
+
+      // ── Auth ──
+      function updateAuthUI() {
+        const label = document.getElementById('auth-label');
+        const statusEl = document.getElementById('auth-status');
+        if (currentState.quota) {
+          label.textContent = currentState.quota.user + ' • ' + currentState.quota.used.toLocaleString() + ' tokens';
+          statusEl.classList.add('connected');
+        } else {
+          label.textContent = 'Not connected';
+          statusEl.classList.remove('connected');
+        }
+      }
+
+      window.requestAuth = () => {
+        if (!currentState.quota) {
+          document.getElementById('auth-label').textContent = 'Authenticating...';
+          vscode.postMessage({ type: 'oauthRequest' });
+        }
+      };
+
+      // ── Settings ──
+      window.toggleSettings = () => {
+        const overlay = document.getElementById('settings-overlay');
+        overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+      };
+
+      window.closeSettings = (e) => {
+        if (e.target.classList.contains('settings-overlay')) toggleSettings();
+      };
+
+      document.getElementById('btn-settings').onclick = toggleSettings;
+
+      function populateSettingsModels() {
+        ['cfg-planner-model', 'cfg-coder-model'].forEach(id => {
+          const select = document.getElementById(id);
+          const current = select.value;
+          select.innerHTML = '<option value="">Default (auto-detect)</option>';
+          availableModels.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            if (m === current) opt.selected = true;
+            select.appendChild(opt);
+          });
+        });
+      }
+
+      function applyConfigToUI() {
+        if (!currentState.config) return;
+        const cfg = currentState.config;
+
+        if (cfg.plannerModel) document.getElementById('cfg-planner-model').value = cfg.plannerModel;
+        if (cfg.coderModel) document.getElementById('cfg-coder-model').value = cfg.coderModel;
+        if (cfg.defaultMode) {
+          document.getElementById('cfg-default-mode').value = cfg.defaultMode;
+          // Apply default mode to toggle if not already changed by user
+          if (selectedMode === 'auto') selectMode(cfg.defaultMode);
+        }
+        if (cfg.tokenBudget) document.getElementById('cfg-budget').value = cfg.tokenBudget;
+      }
+
+      window.saveSettings = () => {
+        vscode.postMessage({
+          type: 'updateConfig',
+          config: {
+            plannerModel: document.getElementById('cfg-planner-model').value,
+            coderModel: document.getElementById('cfg-coder-model').value,
+            defaultMode: document.getElementById('cfg-default-mode').value,
+            tokenBudget: parseInt(document.getElementById('cfg-budget').value) || 0,
+          }
+        });
+        toggleSettings();
+      };
+
+      // ── Helpers ──
+      function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function parseMarkdown(text) {
+        if (!text) return '';
+        let html = escapeHtml(text);
+
+        // 1. Think tags (DeepSeek / Gemini Pro)
+        html = html.replace(/&lt;think&gt;([\s\S]*?)(?:&lt;\/think&gt;|$)/gi, (match, content) => {
+          return `<details class="think-block"><summary>View Agent Thought Process</summary><div>${content.trim()}</div></details>`;
+        });
+
+        // 2. Write File blocks
+        html = html.replace(/\[WRITE_FILE:\s*([^\]]+)\]([\s\S]*?)(\[\/WRITE_FILE\]|$)/gi, (match, path, content, closeTag) => {
+          if (closeTag.toLowerCase().includes('[/write_file]')) {
+            return `\n\n<div style="padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--success); margin: 10px 0; border-radius: 4px; font-weight: 600; color: var(--text);">📝 Generated: ${path}</div>\n\n`;
+          }
+          return `\n\n<div style="padding: 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-left: 3px solid var(--accent); margin: 10px 0; border-radius: 4px; font-weight: 600; color: var(--text);">⚡ Writing to ${path}...</div>\n\n`;
+        });
+
+        // 3. Multi-line code blocks
+        html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="md-code-block">$2</div>');
+
+        // 4. Inline code
+        html = html.replace(/`([^`\n]+)`/g, '<span class="md-code">$1</span>');
+
+        // 5. Bold text
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+        // 6. Headers
+        html = html.replace(/^### (.*$)/gim, '<h3 class="md-h3">$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2 class="md-h2">$1</h2>');
+
+        // Remove leftover markdown lists to clean up plain text presentation slightly if needed
+        return html;
+      }
+
+      function escapeAttr(str) {
+        // Escape backslashes first (Windows paths), then quotes
+        return str ? str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;') : '';
+      }
+
+      // ── Init ──
+      vscode.postMessage({ type: 'requestState' });
+    })();
+  </script>
+</body>
+
+</html>
